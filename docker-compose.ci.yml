@@ -1,0 +1,98 @@
+# CI testing environment — PostgreSQL + Temporal + Backend + Frontend
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cnow-ci-postgres
+    environment:
+      POSTGRES_USER: cnow
+      POSTGRES_PASSWORD: cnow
+      POSTGRES_DB: cnow_test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_ci_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cnow -d cnow_test"]
+      interval: 3s
+      timeout: 3s
+      retries: 15
+    networks:
+      - cnow_ci
+
+  temporal:
+    image: temporalio/auto-setup:1.24.2
+    container_name: cnow-ci-temporal
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: cnow
+      POSTGRES_PWD: cnow
+      POSTGRES_SEEDS: postgres
+    ports:
+      - "7233:7233"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "tctl", "--namespace", "default", "cluster", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+    networks:
+      - cnow_ci
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: cnow-ci-backend
+    environment:
+      CNOW_ENV: ci
+      CNOW_HTTP_ADDR: ":8080"
+      CNOW_DB_HOST: postgres
+      CNOW_DB_PORT: "5432"
+      CNOW_DB_USER: cnow
+      CNOW_DB_PASSWORD: cnow
+      CNOW_DB_NAME: cnow_test
+      TEMPORAL_HOST: temporal:7233
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      temporal:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/healthz"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - cnow_ci
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: cnow-ci-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:80/"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - cnow_ci
+
+volumes:
+  postgres_ci_data:
+
+networks:
+  cnow_ci:
+    driver: bridge

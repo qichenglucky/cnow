@@ -1,0 +1,122 @@
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  workflow_dispatch:
+
+env:
+  GO_VERSION: '1.22'
+  CNOW_DB_HOST: localhost
+  CNOW_DB_PORT: '5432'
+  CNOW_DB_USER: cnow
+  CNOW_DB_PASSWORD: cnow
+  CNOW_DB_NAME: cnow_test
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v4
+        with:
+          version: latest
+          working-directory: backend
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: cnow
+          POSTGRES_PASSWORD: cnow
+          POSTGRES_DB: cnow_test
+        ports:
+          - 5432:5432
+        options: --health-cmd pg_isready --health-interval 10s --health-timeout 5s --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - name: Run tests
+        run: go test ./... -v -race -count=1
+        env:
+          CNOW_DB_HOST: localhost
+          CNOW_DB_PORT: '5432'
+          CNOW_DB_USER: cnow
+          CNOW_DB_PASSWORD: cnow
+          CNOW_DB_NAME: cnow_test
+
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: backend/go.sum
+
+      - name: Build binary
+        run: go build -o cnow-server ./cmd/server
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: cnow-server
+          path: backend/cnow-server
+
+  docker:
+    name: Docker Build
+    runs-on: ubuntu-latest
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./backend
+          push: false
+          tags: cnow-backend:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max

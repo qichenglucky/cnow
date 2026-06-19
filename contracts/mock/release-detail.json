@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "releaseId": "rel_001",
+    "status": "deploying",
+    "strategy": "canary",
+    "riskLevel": "medium",
+    "events": [
+      { "type": "release.created", "status": "created" },
+      { "type": "release.approved", "status": "approved" },
+      { "type": "release.deploying", "status": "deploying" }
+    ]
+  }
+}
+

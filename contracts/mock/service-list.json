@@ -1,0 +1,16 @@
+{
+  "code": 0,
+  "message": "ok",
+  "data": {
+    "items": [
+      {
+        "id": 123,
+        "name": "user-api",
+        "displayName": "用户服务",
+        "status": "ready",
+        "techStack": "go"
+      }
+    ]
+  }
+}
+

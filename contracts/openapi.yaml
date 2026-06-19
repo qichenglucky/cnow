@@ -1,0 +1,22 @@
+openapi: 3.0.3
+info:
+  title: CodeNow API
+  version: 0.1.0
+paths:
+  /api/v1/services:
+    get:
+      summary: List services
+    post:
+      summary: Create service
+  /api/v1/releases:
+    get:
+      summary: List releases
+    post:
+      summary: Create release
+  /api/v1/ai/plan:
+    post:
+      summary: Generate service plan
+  /api/v1/ai/risk:
+    post:
+      summary: Analyze release risk
+

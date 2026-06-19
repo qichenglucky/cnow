@@ -1,0 +1,48 @@
+# Minimal local dev — PostgreSQL + Temporal
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: cnow-postgres
+    restart: unless-stopped
+    ports:
+      - "5433:5432"          # 5432 may be taken by other projects
+    environment:
+      POSTGRES_USER: cnow
+      POSTGRES_PASSWORD: cnow
+      POSTGRES_DB: cnow
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cnow -d cnow"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+
+  temporal:
+    image: temporalio/auto-setup:1.24.2
+    container_name: cnow-temporal
+    restart: unless-stopped
+    ports:
+      - "7233:7233"
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: cnow
+      POSTGRES_PWD: cnow
+      POSTGRES_SEEDS: postgres
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "tctl", "--namespace", "default", "cluster", "health"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+volumes:
+  postgres_data:
